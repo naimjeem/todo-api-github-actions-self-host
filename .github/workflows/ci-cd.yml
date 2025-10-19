@@ -1,0 +1,164 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, dev, uat ]
+  pull_request:
+    branches: [ main, dev, uat ]
+  workflow_dispatch: # Allow manual triggering
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: naimjeem/todo-api-github-actions-self-host
+
+jobs:
+  # Test Job
+  test:
+    runs-on: [self-hosted, linux, x64]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_todoapp
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run linting
+      run: npm run lint
+
+    - name: Run tests
+      run: npm test
+      env:
+        NODE_ENV: test
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_NAME: test_todoapp
+        DB_USER: postgres
+        DB_PASSWORD: postgres
+        JWT_SECRET: test-secret-key
+
+  # Build and Push Job (only for main branch)
+  build-and-push:
+    needs: test
+    runs-on: [self-hosted, linux, x64]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=dev,enable={{is_default_branch == false && github.ref == 'refs/heads/dev'}}
+          type=raw,value=uat,enable={{is_default_branch == false && github.ref == 'refs/heads/uat'}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # Deploy Job (only for main branch)
+  deploy:
+    needs: build-and-push
+    runs-on: [self-hosted, linux, x64]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Deploy to production
+      run: |
+        echo "🚀 Deploying to production..."
+        echo "Repository: https://github.com/naimjeem/todo-api-github-actions-self-host"
+        echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+        echo "Deployment would happen here in a real scenario"
+        echo "This could include:"
+        echo "- Updating Kubernetes manifests"
+        echo "- Rolling out to production servers"
+        echo "- Running health checks"
+        echo "- Sending notifications"
+        echo "- Deploying to: https://github.com/naimjeem/todo-api-github-actions-self-host"
+
+  # Security Scan Job
+  security-scan:
+    runs-on: [self-hosted, linux, x64]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # Notification Job
+  notify:
+    needs: [test, build-and-push, deploy]
+    runs-on: [self-hosted, linux, x64]
+    if: always() && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Notify deployment status
+      run: |
+        if [ "${{ needs.test.result }}" == "success" ] && [ "${{ needs.build-and-push.result }}" == "success" ] && [ "${{ needs.deploy.result }}" == "success" ]; then
+          echo "✅ Deployment successful!"
+          echo "🎉 Todo App has been deployed to production"
+        else
+          echo "❌ Deployment failed!"
+          echo "Please check the logs for more details"
+        fi
