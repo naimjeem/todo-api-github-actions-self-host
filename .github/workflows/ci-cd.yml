@@ -72,27 +72,24 @@ jobs:
     - name: Fix Docker permissions
       run: |
         echo "Checking Docker permissions..."
-        if ! docker info >/dev/null 2>&1; then
-          echo "Docker permission denied. Attempting to fix..."
-          
-          # Try to add user to docker group
-          sudo usermod -aG docker $USER || echo "Failed to add user to docker group"
-          
-          # Try to start Docker daemon
-          sudo systemctl start docker || echo "Failed to start Docker daemon"
-          
-          # Wait a moment for changes to take effect
-          sleep 3
-          
-          # Test Docker access again
-          if docker info >/dev/null 2>&1; then
-            echo "✅ Docker is now accessible"
-          else
-            echo "❌ Docker still not accessible - manual intervention needed"
-            echo "Please run: sudo usermod -aG docker $USER && newgrp docker"
-          fi
+        
+        # Always try to add user to docker group and start daemon
+        echo "Adding user to docker group..."
+        sudo usermod -aG docker $USER || echo "Failed to add user to docker group"
+        
+        echo "Starting Docker daemon..."
+        sudo systemctl start docker || echo "Failed to start Docker daemon"
+        sudo systemctl enable docker || echo "Failed to enable Docker daemon"
+        
+        # Wait for Docker to be ready
+        sleep 5
+        
+        # Test Docker access
+        if sudo docker info >/dev/null 2>&1; then
+          echo "✅ Docker daemon is running (with sudo)"
         else
-          echo "✅ Docker is already accessible"
+          echo "❌ Docker daemon is not running"
+          exit 1
         fi
 
     - name: Set up Docker Buildx
@@ -124,14 +121,14 @@ jobs:
         
         echo "Building image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$VERSION"
         
-        # Try buildx first, fallback to regular docker build
-        if docker buildx build --platform linux/amd64,linux/arm64 -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$VERSION" --push .; then
+        # Try buildx first with sudo, fallback to regular docker build
+        if sudo docker buildx build --platform linux/amd64,linux/arm64 -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$VERSION" --push .; then
           echo "✅ Buildx build successful"
         else
           echo "⚠️ Buildx failed, trying regular docker build..."
-          if docker build -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$VERSION" .; then
+          if sudo docker build -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$VERSION" .; then
             echo "✅ Regular build successful"
-            if docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$VERSION"; then
+            if sudo docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$VERSION"; then
               echo "✅ Push successful"
             else
               echo "❌ Push failed"
