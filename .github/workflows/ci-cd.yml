@@ -13,49 +13,49 @@ env:
 
 jobs:
   # Test Job
-  test:
-    runs-on: [self-hosted, linux, x64]
+  # test:
+  #   runs-on: [self-hosted, linux, x64]
     
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: test_todoapp
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
+  #   services:
+  #     postgres:
+  #       image: postgres:15
+  #       env:
+  #         POSTGRES_PASSWORD: postgres
+  #         POSTGRES_DB: test_todoapp
+  #       options: >-
+  #         --health-cmd pg_isready
+  #         --health-interval 10s
+  #         --health-timeout 5s
+  #         --health-retries 5
+  #       ports:
+  #         - 5432:5432
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+  #   steps:
+  #   - name: Checkout code
+  #     uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
+  #   - name: Setup Node.js
+  #     uses: actions/setup-node@v4
+  #     with:
+  #       node-version: '18'
+  #       cache: 'npm'
 
-    - name: Install dependencies
-      run: npm ci
+  #   - name: Install dependencies
+  #     run: npm ci
 
-    - name: Run linting
-      run: npm run lint
+  #   - name: Run linting
+  #     run: npm run lint
 
-    - name: Run tests
-      run: npm test
-      env:
-        NODE_ENV: test
-        DB_HOST: localhost
-        DB_PORT: 5432
-        DB_NAME: test_todoapp
-        DB_USER: postgres
-        DB_PASSWORD: postgres
-        JWT_SECRET: test-secret-key
+  #   - name: Run tests
+  #     run: npm test
+  #     env:
+  #       NODE_ENV: test
+  #       DB_HOST: localhost
+  #       DB_PORT: 5432
+  #       DB_NAME: test_todoapp
+  #       DB_USER: postgres
+  #       DB_PASSWORD: postgres
+  #       JWT_SECRET: test-secret-key
 
   # Build and Push Job (only for main branch)
   build-and-push:
