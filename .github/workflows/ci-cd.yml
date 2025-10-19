@@ -70,6 +70,32 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Fix Docker permissions
+      run: |
+        echo "Checking Docker permissions..."
+        if ! docker info >/dev/null 2>&1; then
+          echo "Docker permission denied. Attempting to fix..."
+          
+          # Try to add user to docker group
+          sudo usermod -aG docker $USER || echo "Failed to add user to docker group"
+          
+          # Try to start Docker daemon
+          sudo systemctl start docker || echo "Failed to start Docker daemon"
+          
+          # Wait a moment for changes to take effect
+          sleep 3
+          
+          # Test Docker access again
+          if docker info >/dev/null 2>&1; then
+            echo "✅ Docker is now accessible"
+          else
+            echo "❌ Docker still not accessible - manual intervention needed"
+            echo "Please run: sudo usermod -aG docker $USER && newgrp docker"
+          fi
+        else
+          echo "✅ Docker is already accessible"
+        fi
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
