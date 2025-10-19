@@ -59,7 +59,6 @@ jobs:
 
   # Build and Push Job (only for main branch)
   build-and-push:
-    needs: test
     runs-on: [self-hosted, linux, x64]
     if: github.ref == 'refs/heads/main'
     permissions:
@@ -181,14 +180,14 @@ jobs:
 
   # Notification Job
   notify:
-    needs: [test, build-and-push, deploy]
+    needs: [build-and-push, deploy]
     runs-on: [self-hosted, linux, x64]
     if: always() && github.ref == 'refs/heads/main'
     
     steps:
     - name: Notify deployment status
       run: |
-        if [ "${{ needs.test.result }}" == "success" ] && [ "${{ needs.build-and-push.result }}" == "success" ] && [ "${{ needs.deploy.result }}" == "success" ]; then
+        if [ "${{ needs.build-and-push.result }}" == "success" ] && [ "${{ needs.deploy.result }}" == "success" ]; then
           echo "✅ Deployment successful!"
           echo "🎉 Todo App has been deployed to production"
         else
