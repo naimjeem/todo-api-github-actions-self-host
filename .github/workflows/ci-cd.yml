@@ -62,6 +62,9 @@ jobs:
     needs: test
     runs-on: [self-hosted, linux, x64]
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
     
     steps:
     - name: Checkout code
@@ -127,6 +130,10 @@ jobs:
   security-scan:
     runs-on: [self-hosted, linux, x64]
     if: github.ref == 'refs/heads/main'
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
     
     steps:
     - name: Checkout code
